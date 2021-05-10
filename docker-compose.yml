@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  # DOCKER_BUILDKIT=1 docker build --ssh default --target ci-image --tag radix-co2-reduction-ci .
+  ci:
+    image: registry.gitlab.com/None/ci:latest
+    build:
+      context: .
+      target: ci-image
+
+  # DOCKER_BUILDKIT=1 docker build --ssh default --target app-image --tag radix-co2-reduction-app .
+  app:
+    image: registry.gitlab.com/None:latest
+    build:
+      context: .
+      target: app-image
+    command: ["dev"]
+    ports:
+      - 8000:8000
+    volumes:
+      - ./src/radix-co2-reduction/:/app/src/radix-co2-reduction/
