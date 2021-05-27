@@ -1,7 +1,7 @@
 """Base model for the Earth Engine data."""
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import ee
 from tqdm import tqdm
@@ -28,7 +28,9 @@ class EarthEngineCollection:
         self._test_band = test_band
         self.collection: Optional[ee.ImageCollection] = None
         self.band_translation: Dict[str, str] = {}
-        self.vis_param = {"min": 0.0, "max": 0.5} if vis_param is None else vis_param
+        self.vis_param = (
+            {"min": 0.0, "max": 0.5, "bands": ["R", "G", "B"]} if vis_param is None else vis_param
+        )
         self.tag = tag
 
     def __str__(self) -> str:
@@ -47,7 +49,7 @@ class EarthEngineCollection:
         relevant_bands: Optional[List[str]] = None,
         filter_clouds: bool = False,
         filter_perc: float = 0.25,
-        filter_duplicate_days: bool = True,
+        merge_same_days: bool = True,
         return_masked: bool = True,
     ) -> None:
         """
@@ -59,7 +61,7 @@ class EarthEngineCollection:
         :param relevant_bands: Only bands to keep (improve performance on large collections)
         :param filter_clouds: Filter the clouds from the collection
         :param filter_perc: Percentage of non-cloud pixels remaining before filtering out image
-        :param filter_duplicate_days: Filter out days that occur more than once in the dataset
+        :param merge_same_days: Merge images that are taken on the same day
         :param return_masked: Return the image where the clouds are masked out
         """
         self.collection = (
@@ -71,8 +73,8 @@ class EarthEngineCollection:
             self.remove_clouds(region=region, perc=filter_perc, return_masked=return_masked)
         else:
             self.remove_none(region=region)
-        if filter_duplicate_days:
-            self.remove_duplicate_days()
+        if merge_same_days:
+            self.merge_same_days()
         self.set_core_bands()
 
     def remove_clouds(
@@ -101,29 +103,25 @@ class EarthEngineCollection:
 
         self.collection = self.collection.map(mask, opt_dropNulls=True)  # type: ignore
 
-    def remove_duplicate_days(self) -> None:
+    def merge_same_days(self) -> None:
         """Remove duplicate days from the data collection."""
-        dates = self.get_dates()
-
-        # Return if no duplicates
-        if len(dates) == len(set(dates)):
+        # Ignore if collection is non-existing
+        size = self.get_size()
+        if size == 0:
             return
 
-        # Remove the duplicate dates; only keep first occurring images
-        images = []
+        # Get dates for images in the collection
         lst = self.collection.toList(self.collection.size())  # type: ignore
-        added: Set[str] = set()
-        for i, date in enumerate(dates):
-            # Check if already added
-            if date in added:
-                continue
+        unique_dates = lst.map(lambda im: ee.Image(im).date().format("YYYY-MM-dd")).distinct()
 
-            # Not yet added, include image
-            images.append(lst.get(i))
-            added.add(date)
+        def merge(date: Any) -> ee.Image:
+            date = ee.Date(date)
+            im = self.collection.filterDate(date, date.advance(1, "day")).mosaic()  # type: ignore
+            return im.set(
+                "system:time_start", date.millis(), "system:id", date.format("YYYY-MM-dd")
+            )
 
-        # Update the collection with the remaining images
-        self.collection = ee.ImageCollection(images)
+        self.collection = ee.ImageCollection(unique_dates.map(merge))
 
     def set_core_bands(self) -> None:
         """Set the core bands: ['B','G','R','NIR','SWIR1','SWIR2']."""
@@ -209,21 +207,16 @@ class EarthEngineCollection:
             )
         else:
             lst = self.collection.select(vis_param["bands"]).toList(self.collection.size())
-            added: Set[str] = set()
-            for i in tqdm(range(self.get_size()), desc="Adding images"):
+            dates = self.get_dates(sort=False)
+            order = sorted(zip(dates, range(len(dates))))
+            for date, i in tqdm(order, desc="Adding images"):
                 im = ee.Image(lst.get(i))
-                date = datetime.fromtimestamp(int(im.date().getInfo()["value"] / 1000)).strftime(
-                    "%Y-%m-%d"
-                )
-                if date in added:
-                    continue
                 mp.add_ee_layer(
                     im,
                     vis_param,
-                    f"{self} ({date} - idx: {i})",
-                    len(added) == 0,  # First one added
+                    f"{self} ({date})",
+                    i == 0,  # First one added
                 )
-                added.add(date)  # Ignore multiple pictures of the same day
         return mp
 
     def add_extra_layers(self) -> None:
@@ -252,15 +245,14 @@ class EarthEngineCollection:
         assert self.collection is not None
         return self.collection.size().getInfo()  # type: ignore
 
-    def get_dates(self) -> List[str]:
+    def get_dates(self, sort: bool = True) -> List[str]:
         """Get the dates of the images present in the collection."""
         assert self.collection is not None
-        return sorted(
-            [
-                datetime.fromtimestamp(int(x / 1000)).strftime("%Y-%m-%d")
-                for x in self.collection.aggregate_array("system:time_start").getInfo()
-            ]
-        )
+        dates = [
+            datetime.fromtimestamp(int(x / 1000)).strftime("%Y-%m-%d")
+            for x in self.collection.aggregate_array("system:time_start").getInfo()
+        ]
+        return sorted(dates) if sort else dates
 
     def get_image_by_date(self, date: str) -> Optional[Any]:
         """Get the image matching the provided date, if exists."""
@@ -278,15 +270,14 @@ class EarthEngineCollection:
 
     def sample(
         self,
-        region: Any,
-        n_pixels: int = 100,
+        pixels: ee.FeatureCollection,
         seed: int = 42,
     ) -> Dict[str, Dict[str, List[Optional[float]]]]:
         """
         Sample the collection over a specified region.
 
         :param region: The region to sample
-        :param n_pixels: Number of pixels to sample
+        :param pixels: The pixels to sample over
         :param seed: Randomisation seed
         :return: For every date a dictionary over all the requested bands containing the sampled values
         """
@@ -294,14 +285,6 @@ class EarthEngineCollection:
         if "NDVI" not in self.get_band_names():
             self.add_extra_layers()
         bands = ["B", "G", "R", "NIR", "SWIR1", "SWIR2", "NDVI", "EVI", "NDTI"]
-
-        # Get pixel to sample over
-        pixels = ee.FeatureCollection.randomPoints(
-            region=region,
-            points=n_pixels,
-            seed=seed,
-            maxError=50,
-        )
 
         # Setup a sampling function
         def _sample(im: ee.Image) -> Any:

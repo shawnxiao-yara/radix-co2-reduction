@@ -11,7 +11,7 @@ import torch._six
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 
-import src.radix_co2_reduction.field_detector.mask_rcnn.utils as utils
+import src.radix_co2_reduction.field_detection.mask_rcnn.utils as utils
 
 
 class CocoEvaluator(object):

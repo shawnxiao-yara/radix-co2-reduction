@@ -7,8 +7,8 @@ from shutil import copy, rmtree
 import numpy as np
 from PIL import Image
 
-from src.radix_co2_reduction.field_detector.data.transforms import transform
-from src.radix_co2_reduction.field_detector.data.utils import create_aggregated_mask, from_vgg
+from src.radix_co2_reduction.field_detection.data.transforms import transform
+from src.radix_co2_reduction.field_detection.data.utils import create_aggregated_mask, from_vgg
 
 
 def generate(read_path: Path, write_path: Path, clean: bool = True) -> None:

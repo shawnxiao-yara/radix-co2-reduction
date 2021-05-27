@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 from glob import glob
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import numpy as np
 import torch
@@ -14,18 +14,18 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
 from tqdm import tqdm
 
-import src.radix_co2_reduction.field_detector.mask_rcnn.utils as utils
-from src.radix_co2_reduction.field_detector.data import mask_to_polygons
-from src.radix_co2_reduction.field_detector.dataset import Dataset
-from src.radix_co2_reduction.field_detector.mask_rcnn.engine import evaluate, train_one_epoch
-from src.radix_co2_reduction.field_detector.mask_rcnn.transforms import get_transform
+import src.radix_co2_reduction.field_detection.mask_rcnn.utils as utils
+from src.radix_co2_reduction.field_detection.data import mask_to_polygons
+from src.radix_co2_reduction.field_detection.dataset import Dataset
+from src.radix_co2_reduction.field_detection.mask_rcnn.engine import evaluate, train_one_epoch
+from src.radix_co2_reduction.field_detection.mask_rcnn.transforms import get_transform
 
 # Randomisation seed
 SEED = 42
 
 
 def get_instance_segmentation_model(num_classes: int) -> Any:
-    """Initialise instance segmentation model for the requested number of classes."""
+    """Create an instance segmentation model."""
     # load an instance segmentation model pre-trained on COCO
     model = torchvision.models.detection.maskrcnn_resnet50_fpn(
         pretrained=True,
@@ -253,14 +253,12 @@ def eval_mdl(
 def infer_mdl(
     model: Any,
     path: Path,
-    pixel: Tuple[int, int] = (128, 128),
 ) -> None:
     """
     Predict the polygon of the mask covering the specified pixel.
 
     :param model: Model used during inference
     :param path: Path where the raw field-images are stored
-    :param pixel: Pixel-position that the polygon should contain
     """
     # Move model to the right device
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")  # type: ignore
@@ -271,7 +269,7 @@ def infer_mdl(
     images = glob(str(path / "*/true_color.png"))
 
     # Predict masks for the images
-    results = {}  # type: ignore
+    results: Dict[str, Optional[Any]] = {}
     transform = get_transform()
     for im_path in tqdm(sorted(images)):
         field_id = Path(im_path).parent.name
@@ -282,6 +280,10 @@ def infer_mdl(
         except UnidentifiedImageError:
             results[field_id] = None
             continue
+
+        # Extract center of image
+        shape = np.asarray(img).shape
+        pixel = shape[0] // 2, shape[1] // 2
 
         # Make masking predictions
         img, _ = transform(img, None)
@@ -312,7 +314,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--mdl",
-        default=Path(__file__).parent / "../../models/mask_rcnn",
+        # default='',
+        default=Path.home() / "data/agoro/models/mask_rcnn_2021_04_26_17_19",
         help="Path to previous model, create new one if empty",
     )
     parser.add_argument(
@@ -327,12 +330,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--train",
-        default=1,
+        default=0,
         help="Whether or not to train the model",
     )
     parser.add_argument(
         "--eval",
-        default=1,
+        default=0,
         help="Whether or not to evaluate the model",
     )
     parser.add_argument(

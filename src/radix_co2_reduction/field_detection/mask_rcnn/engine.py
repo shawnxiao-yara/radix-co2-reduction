@@ -7,9 +7,9 @@ from typing import Any
 import torch
 import torchvision.models.detection.mask_rcnn
 
-import src.radix_co2_reduction.field_detector.mask_rcnn.utils as utils
-from src.radix_co2_reduction.field_detector.mask_rcnn.coco_eval import CocoEvaluator
-from src.radix_co2_reduction.field_detector.mask_rcnn.coco_utils import get_coco_api_from_dataset
+import src.radix_co2_reduction.field_detection.mask_rcnn.utils as utils
+from src.radix_co2_reduction.field_detection.mask_rcnn.coco_eval import CocoEvaluator
+from src.radix_co2_reduction.field_detection.mask_rcnn.coco_utils import get_coco_api_from_dataset
 
 
 def train_one_epoch(

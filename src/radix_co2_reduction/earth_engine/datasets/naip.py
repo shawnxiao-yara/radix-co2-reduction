@@ -14,6 +14,7 @@ class NaipCollection(EarthEngineCollection):
             vis_param={
                 "min": 0.0,
                 "max": 255.0,
+                "bands": ["R", "G", "B"],
             },
             tag="USDA/NAIP/DOQQ",
             test_band="N",

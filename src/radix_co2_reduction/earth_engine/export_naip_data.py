@@ -115,7 +115,7 @@ if __name__ == "__main__":
     start()
 
     # Load in all field-data
-    beck = pd.read_csv(ROOT / "data/beck_corn_data_v2.csv", index_col=0)
+    beck = pd.read_csv(ROOT / "data/beck_corrected.csv", index_col=0)
     beck.head()
 
     # Generate the fields

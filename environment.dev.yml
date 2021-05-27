@@ -48,3 +48,4 @@ dependencies:
       - scalene
       - snoop
       - seaborn
+      - tensorflow

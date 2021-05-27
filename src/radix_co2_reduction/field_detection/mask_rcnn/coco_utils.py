@@ -9,7 +9,7 @@ import torchvision
 from pycocotools import mask as coco_mask
 from pycocotools.coco import COCO
 
-import src.radix_co2_reduction.field_detector.mask_rcnn.transforms as T
+import src.radix_co2_reduction.field_detection.mask_rcnn.transforms as T
 
 
 class FilterAndRemapCocoCategories(object):

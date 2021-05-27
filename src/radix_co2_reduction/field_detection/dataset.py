@@ -8,7 +8,7 @@ import torch
 import torch.utils.data
 from PIL import Image
 
-from src.radix_co2_reduction.field_detector.mask_rcnn.transforms import get_transform
+from src.radix_co2_reduction.field_detection.mask_rcnn.transforms import get_transform
 
 
 class Dataset(torch.utils.data.Dataset):  # type: ignore

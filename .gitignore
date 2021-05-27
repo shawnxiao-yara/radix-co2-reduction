@@ -92,3 +92,6 @@ models/__init__.py
 !models/cloud_filter.pickle
 !models/field_rf.pickle
 !models/field_rf_meta.json
+
+# PyTorch Lightning logging
+lightning_logs/

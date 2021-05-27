@@ -11,10 +11,10 @@ import torchvision.models.detection
 import torchvision.models.detection.mask_rcnn
 from group_by_aspect_ratio import GroupedBatchSampler, create_aspect_ratio_groups
 
-import src.radix_co2_reduction.field_detector.mask_rcnn.presets as presets
-import src.radix_co2_reduction.field_detector.mask_rcnn.utils as utils
-from src.radix_co2_reduction.field_detector.mask_rcnn.coco_utils import get_coco, get_coco_kp
-from src.radix_co2_reduction.field_detector.mask_rcnn.engine import evaluate, train_one_epoch
+import src.radix_co2_reduction.field_detection.mask_rcnn.presets as presets
+import src.radix_co2_reduction.field_detection.mask_rcnn.utils as utils
+from src.radix_co2_reduction.field_detection.mask_rcnn.coco_utils import get_coco, get_coco_kp
+from src.radix_co2_reduction.field_detection.mask_rcnn.engine import evaluate, train_one_epoch
 
 
 def get_dataset(name: Any, image_set: Any, transform: Any, data_path: Any) -> Any:

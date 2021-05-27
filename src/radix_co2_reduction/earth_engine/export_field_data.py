@@ -4,13 +4,13 @@ Export the NDVI, EVI, and NDTI data from the requested fields.
 See the compulsatory notebook: tillage_detection.ipynb .
 """
 import json
-import re
 from datetime import datetime
 from pathlib import Path
 from shutil import rmtree
 from time import sleep
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+import ee
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
@@ -154,9 +154,6 @@ def plot_time_series(
     fmt_month = mdates.MonthLocator()
     ax.xaxis.set_minor_locator(fmt_month)
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
-    # datemin = np.datetime64(x_data[0], 'Y')
-    # datemax = np.datetime64(x_data[-1], 'Y') + np.timedelta64(1, 'Y')
-    # ax.set_xlim(datemin, datemax)
     ax.format_xdata = mdates.DateFormatter("%Y-%m")
     fig.autofmt_xdate()
     ax.set_xlabel("Date", fontsize=14)
@@ -188,27 +185,10 @@ def plot_time_series(
     plt.close()
 
 
-def extract_harvest_date(d: str) -> Optional[str]:
-    """Parse out the harvest date."""
-    d = re.sub(r"[\n]+", " ", d)[11:21]
-    try:
-        return datetime.strptime(d, "%m/%d/%Y").strftime("%Y-%m-%d")
-    except ValueError:
-        return None
-
-
-def extract_planting_date(d: str) -> Optional[str]:
-    """Parse out the harvest date."""
-    d = re.sub(r"[\n]+", " ", d)[9:19]
-    try:
-        return datetime.strptime(d, "%m/%d/%Y").strftime("%Y-%m-%d")
-    except ValueError:
-        return None
-
-
 def export(
     field: Any,
     overwrite: bool = False,
+    n_pixels: int = 1_000,
     min_samples: int = 5,
     export_time_series: bool = True,
     debug: bool = False,
@@ -218,6 +198,7 @@ def export(
 
     :param field: Field to export data from
     :param overwrite: Overwrite previous data stored
+    :param n_pixels: Number of pixels to sample
     :param min_samples: Minimum number of samples (dates) the field should have
     :param export_time_series: Export time-series images
     :param debug: Export additional information
@@ -229,18 +210,16 @@ def export(
         print(" ! DATA ALREADY EXISTS --> IGNORING")
         return False
     FIELD_PATH.mkdir(parents=True, exist_ok=True)
-    TILL_TYPE = field.tillage[9:]
+    TILL_TYPE = field.tillage
     print(f" - Tillage type: {TILL_TYPE}")
 
     # Extract harvesting and planting dates
-    harvest_date = extract_harvest_date(field.harvest_date)
+    harvest_date = field.harvest_date
     print(f" - Harvesting date: {harvest_date}")
-    planting_date = extract_planting_date(field.planted_date)
+    planting_date = field.planted_date
     print(f" - Planting date: {planting_date}")
     startdate = f"{YEAR - 1}-09-01" if debug else f"{YEAR - 1}-11-01"
-    enddate = harvest_date if debug else f"{YEAR}-05-31"
-    # startdate = f"{YEAR - 1}-06-01" if debug else f"{YEAR - 1}-12-01"
-    # enddate = harvest_date if debug else planting_date
+    enddate = harvest_date if debug else f"{YEAR}-04-30"
     print(f" - Extracting data from {startdate} until {enddate}")
 
     # Write down the metadata
@@ -349,21 +328,29 @@ def export(
     landsat8.add_extra_layers()
     sentinel2.add_extra_layers()
 
+    # Get the pixels to sample over
+    pixels = ee.FeatureCollection.randomPoints(
+        region=field_polygon,
+        points=n_pixels,
+        seed=42,
+        maxError=0,
+    )
+
     # Sample the datasets
     backup = FIELD_PATH / "samples"
     backup.mkdir(parents=True, exist_ok=True)
     s_landsat7 = landsat7.sample(
-        region=field_polygon,
+        pixels=pixels,
     )
     with open(backup / "landsat7.json", "w") as f:
         json.dump(s_landsat7, f)
     s_landsat8 = landsat8.sample(
-        region=field_polygon,
+        pixels=pixels,
     )
     with open(backup / "landsat8.json", "w") as f:
         json.dump(s_landsat8, f)
     s_sentinel2 = sentinel2.sample(
-        region=field_polygon,
+        pixels=pixels,
     )
     with open(backup / "sentinel2.json", "w") as f:
         json.dump(s_sentinel2, f)
@@ -430,21 +417,17 @@ if __name__ == "__main__":
     start()
 
     # Load in all field-data
-    beck = pd.read_csv(ROOT / "data/beck_corn_data.csv", index_col=0)
+    beck = pd.read_csv(ROOT / "data/beck_corrected.csv")
 
     # Get the fields of interest
     no_till = [
-        int(x)
-        for x in beck[beck["tillage"] == "TILLAGE: No-Till"]["id"]
-        if str(int(x)) in boundaries
+        int(x) for x in beck[beck["tillage"] == "No-Till"]["id"] if str(int(x)) in boundaries
     ]
     print(f"Total of {len(no_till)} recognised no-tillage fields")
     conv_till = [
-        int(x)
-        for x in beck[beck["tillage"] == "TILLAGE: Conv.-Till"]["id"]
-        if str(int(x)) in boundaries
+        int(x) for x in beck[beck["tillage"] == "Conv.-Till"]["id"] if str(int(x)) in boundaries
     ]
-    print(f"Total of {len(conv_till)} recognised conventional tillage fields")
+    print(f"Total of {len(conv_till)} recognised tillage fields")
 
     # Intertwine tillage types
     foi = []

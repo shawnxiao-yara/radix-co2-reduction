@@ -63,7 +63,7 @@ def create_bounding_box(
     :param offset: Offset in meters, which creates a bounding box of 2*offset by 2*offset
     :return: GeoJSON of a polygon
     """
-    dlng, dlat = get_dlng_dlat(
+    dlat, dlng = get_dlat_dlng(
         lat=lat,
         dx=offset,
         dy=offset,
@@ -92,15 +92,14 @@ def create_bounding_box(
     }
 
 
-def get_dlng_dlat(
+def get_dlat_dlng(
     lat: float,
     dx: int,
     dy: int,
 ) -> Tuple[float, float]:
     """
-    Get the longitude and latitude relative to the provided coordinates under the offset in meters.
+    Get the latitude and longitude relative to the provided coordinates under the offset in meters.
 
-    :param lng: Longitude in degrees
     :param lat: Latitude in degrees
     :param dx: Longitude offset in meters
     :param dy: Latitude offset in meters
@@ -110,7 +109,7 @@ def get_dlng_dlat(
     r = 6378137  # Earth radius
     dlat = dy / r * 180 / pi
     dlng = dx / (r * cos(pi * lat / 180)) * 180 / pi
-    return dlng, dlat
+    return dlat, dlng
 
 
 def download_as_png(
