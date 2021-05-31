@@ -47,31 +47,11 @@ def swir2(sample: Dict[str, List[Optional[float]]]) -> List[float]:
     return [x for x in sample["SWIR2"] if x]
 
 
-def r_swir1(sample: Dict[str, List[Optional[float]]]) -> List[float]:
-    """Get the index obtained by calculating the normalised difference between SWIR1 and R from the sample."""
-    values = [
-        (b - a) / ((b + a) if (b + a) != 0 else 1) for a, b in zip(nir(sample), swir1(sample))
-    ]
-    return values
+def sar_vv(sample: Dict[str, List[Optional[float]]]) -> List[float]:
+    """Get the SAR_VV from the sample."""
+    return [x for x in sample["SAR_VV"] if x]
 
 
-def r_swir2(sample: Dict[str, List[Optional[float]]]) -> List[float]:
-    """Get the index obtained by calculating the normalised difference between SWIR2 and R from the sample."""
-    values = [(b - a) / ((b + a) if (b + a) != 0 else 1) for a, b in zip(r(sample), swir2(sample))]
-    return values
-
-
-def nir_swir1(sample: Dict[str, List[Optional[float]]]) -> List[float]:
-    """Get the index obtained by calculating the normalised difference between SWIR1 and NIR from the sample."""
-    values = [
-        (b - a) / ((b + a) if (b + a) != 0 else 1) for a, b in zip(nir(sample), swir1(sample))
-    ]
-    return values
-
-
-def nir_swir2(sample: Dict[str, List[Optional[float]]]) -> List[float]:
-    """Get the index obtained by calculating the normalised difference between SWIR2 and NIR from the sample."""
-    values = [
-        (b - a) / ((b + a) if (b + a) != 0 else 1) for a, b in zip(nir(sample), swir2(sample))
-    ]
-    return values
+def sar_vh(sample: Dict[str, List[Optional[float]]]) -> List[float]:
+    """Get the SAR_VH from the sample."""
+    return [x for x in sample["SAR_VH"] if x]

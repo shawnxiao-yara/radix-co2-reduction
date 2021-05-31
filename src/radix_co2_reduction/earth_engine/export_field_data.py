@@ -2,6 +2,8 @@
 Export the NDVI, EVI, and NDTI data from the requested fields.
 
 See the compulsatory notebook: tillage_detection.ipynb .
+
+TODO: Deprecated code, use script in main.py instead
 """
 import json
 from datetime import datetime
@@ -21,6 +23,7 @@ from src.radix_co2_reduction.earth_engine.datasets import (
     CroplandCollection,
     Landsat7Collection,
     Landsat8Collection,
+    Sentinel1Collection,
     Sentinel2Collection,
 )
 from src.radix_co2_reduction.earth_engine.session import start
@@ -61,8 +64,10 @@ def get_color(coll: str) -> str:
         return "tab:orange"
     if coll == "sentinel2":
         return "tab:green"
-    if coll == "cropland":
-        return "tab:olive"
+    if coll == "plant date":
+        return "green"
+    if coll == "harvest date":
+        return "red"
     return "black"
 
 
@@ -163,19 +168,11 @@ def plot_time_series(
     ax.set_ylim(y_min, y_max)
 
     # Custom legend
-    dummy_lines = [
-        Line2D([0], [0], color="tab:blue", lw=4),
-        Line2D([0], [0], color="tab:orange", lw=4),
-        Line2D([0], [0], color="tab:green", lw=4),
-        Line2D([0], [0], color="black", lw=4),
-        Line2D([0], [0], color="green", lw=4),
-        Line2D([0], [0], color="red", lw=4),
-    ]
-    ax.legend(
-        dummy_lines,
-        ["Landsat7", "Landsat8", "Sentinel2", "Any", "Plant date", "Harvest date"],
-        fontsize=12,
-    )
+    dummy_lines, dummy_names = [], []
+    for coll in ("landsat7", "landsat8", "sentinel2", "plant date", "harvest date", "other"):
+        dummy_lines.append(Line2D([0], [0], color=get_color(coll), lw=4))
+        dummy_names.append(coll.title())
+    ax.legend(dummy_lines, dummy_names, fontsize=12)
 
     # Other styling attributes
     ax.set_title(f"{band} over time", fontsize=16)
@@ -185,7 +182,7 @@ def plot_time_series(
     plt.close()
 
 
-def export(
+def export(  # noqa: C901
     field: Any,
     overwrite: bool = False,
     n_pixels: int = 1_000,
@@ -280,6 +277,16 @@ def export(
     if debug:
         print(f" - Number of data samples for {landsat8}: {landsat8.get_size()}")
 
+    # Sentinel-1 SAR GRD data: https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S1_GRD
+    sentinel1 = Sentinel1Collection()
+    sentinel1.load_collection(
+        region=field_polygon,
+        startdate=startdate,
+        enddate=enddate,
+    )
+    if debug:
+        print(f" - Number of data samples for {sentinel1}: {sentinel1.get_size()}")
+
     # Sentinel-2 L2A data: https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S2_SR
     sentinel2 = Sentinel2Collection()
     sentinel2.load_collection(
@@ -299,6 +306,7 @@ def export(
         path.mkdir(parents=True, exist_ok=True)
         landsat7.export_as_png(write_path=path, region=polygon)
         landsat8.export_as_png(write_path=path, region=polygon)
+        sentinel1.export_as_png(write_path=path, region=polygon)
         sentinel2.export_as_png(write_path=path, region=polygon)
 
     # Add Cropland data layer to all image collections and use it as a mask
@@ -315,10 +323,17 @@ def export(
     landsat8.mask_cropland(cropland_im=cropland_im, region=field_polygon)
     size_landsat8 = landsat8.get_size()
     print(f" - Number of data samples for {landsat8} after cropland masking: {size_landsat8}")
+    sentinel1.mask_cropland(cropland_im=cropland_im, region=field_polygon)
+    size_sentinel1 = sentinel1.get_size()
+    print(f" - Number of data samples for {sentinel1} after cropland masking: {size_sentinel1}")
     sentinel2.mask_cropland(cropland_im=cropland_im, region=field_polygon)
     size_sentinel2 = sentinel2.get_size()
     print(f" - Number of data samples for {sentinel2} after cropland masking: {size_sentinel2}")
     if size_landsat7 + size_landsat8 + size_sentinel2 < min_samples:
+        rmtree(FIELD_PATH)
+        print(" ! NOT ENOUGH SAMPLES FOUND --> REMOVING FOLDER")
+        return False
+    if size_sentinel1 == 0:
         rmtree(FIELD_PATH)
         print(" ! NOT ENOUGH SAMPLES FOUND --> REMOVING FOLDER")
         return False
@@ -339,19 +354,16 @@ def export(
     # Sample the datasets
     backup = FIELD_PATH / "samples"
     backup.mkdir(parents=True, exist_ok=True)
-    s_landsat7 = landsat7.sample(
-        pixels=pixels,
-    )
+    s_landsat7 = landsat7.sample(pixels=pixels)
     with open(backup / "landsat7.json", "w") as f:
         json.dump(s_landsat7, f)
-    s_landsat8 = landsat8.sample(
-        pixels=pixels,
-    )
+    s_landsat8 = landsat8.sample(pixels=pixels)
     with open(backup / "landsat8.json", "w") as f:
         json.dump(s_landsat8, f)
-    s_sentinel2 = sentinel2.sample(
-        pixels=pixels,
-    )
+    s_sentinel1 = sentinel1.sample(pixels=pixels)
+    with open(backup / "sentinel1.json", "w") as f:
+        json.dump(s_sentinel1, f)
+    s_sentinel2 = sentinel2.sample(pixels=pixels)
     with open(backup / "sentinel2.json", "w") as f:
         json.dump(s_sentinel2, f)
 
@@ -371,18 +383,9 @@ def export(
     # Plot the time series data
     if export_time_series:
         colors = (
-            [
-                get_color("landsat7"),
-            ]
-            * len(s_landsat7)
-            + [
-                get_color("landsat8"),
-            ]
-            * len(s_landsat8)
-            + [
-                get_color("sentinel2"),
-            ]
-            * len(s_sentinel2)
+            [get_color("landsat7")] * len(s_landsat7)
+            + [get_color("landsat8")] * len(s_landsat8)
+            + [get_color("sentinel2")] * len(s_sentinel2)
         )
         plot_time_series(
             band="NDVI",
@@ -409,6 +412,21 @@ def export(
             plant_date=planting_date,
             harvest_date=harvest_date if debug else None,
         )
+        if s_sentinel1:
+            plot_time_series(
+                band="SAR_VV",
+                data=list(s_sentinel1.items()),
+                write_path=FIELD_PATH / "sar_vv.png",
+                plant_date=planting_date,
+                harvest_date=harvest_date if debug else None,
+            )
+            plot_time_series(
+                band="SAR_VH",
+                data=list(s_sentinel1.items()),
+                write_path=FIELD_PATH / "sar_vh.png",
+                plant_date=planting_date,
+                harvest_date=harvest_date if debug else None,
+            )
     return True
 
 

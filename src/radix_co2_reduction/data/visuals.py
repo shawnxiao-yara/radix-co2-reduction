@@ -36,7 +36,8 @@ def heatmap_field(
 
 
 def plot_time_series(
-    field_path: Path,
+    features:Any,
+    label:bool,
     pixel_idx: int = 0,
     band: str = "NDVI",
     downsample: int = 10,

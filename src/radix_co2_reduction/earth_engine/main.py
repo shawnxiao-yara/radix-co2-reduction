@@ -5,11 +5,12 @@ from typing import List, Tuple
 
 import ee
 from tqdm import tqdm
-
+from time import sleep
 from src.radix_co2_reduction.earth_engine.datasets import (
     CroplandCollection,
     Landsat7Collection,
     Landsat8Collection,
+    Sentinel1Collection,
     Sentinel2Collection,
 )
 from src.radix_co2_reduction.earth_engine.utils import create_polygon
@@ -22,7 +23,7 @@ def sample_field(
     year: int,
     startdate_postfix: str = "-11-01",
     enddate_postfix: str = "-04-30",
-    n_pixels: int = 1000,
+    n_pixels: int = 100,
     overwrite: bool = False,
 ) -> None:
     """
@@ -34,7 +35,7 @@ def sample_field(
     :param startdate_postfix: Starting date postfix of the previous year (month and day)
     :param enddate_postfix: Ending date postfix of the previous year (month and day)
     :param year: The year of interest
-    :param n_pixels: Number of pixels to sample per time-period (day)
+    :param n_pixels: Number of pixels to sample per time-period (day) over the given field
     :param overwrite: Overwrite previously stored data
     """
     # Write down in folder (cache)
@@ -69,6 +70,13 @@ def sample_field(
         filter_clouds=True,
         filter_perc=0.75,
     )
+    # Sentinel-1 SAR GRD data: https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S1_GRD
+    sentinel1 = Sentinel1Collection()
+    sentinel1.load_collection(
+        region=field_polygon,
+        startdate=startdate,
+        enddate=enddate,
+    )
     # Sentinel-2 L2A data: https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S2_SR
     sentinel2 = Sentinel2Collection()
     sentinel2.load_collection(
@@ -89,6 +97,7 @@ def sample_field(
     cropland_im = cropland.collection.first().select("cropland")
     landsat7.mask_cropland(cropland_im=cropland_im, region=field_polygon)
     landsat8.mask_cropland(cropland_im=cropland_im, region=field_polygon)
+    sentinel1.mask_cropland(cropland_im=cropland_im, region=field_polygon)
     sentinel2.mask_cropland(cropland_im=cropland_im, region=field_polygon)
 
     # Collect pixels to sample over
@@ -106,9 +115,24 @@ def sample_field(
     s_landsat8 = landsat8.sample(pixels=pixels)
     with open(write_f / "landsat8.json", "w") as f:
         json.dump(s_landsat8, f)
+    s_sentinel1 = sentinel1.sample(pixels=pixels)
+    with open(write_f / "sentinel1.json", "w") as f:
+        json.dump(s_sentinel1, f)
     s_sentinel2 = sentinel2.sample(pixels=pixels)
     with open(write_f / "sentinel2.json", "w") as f:
         json.dump(s_sentinel2, f)
+    sleep(5)  # Prevent getting blocked by GEE
+    
+    # TODO: Intermediate check, might be removed later on
+    shapes = set()
+    for coll in (s_landsat7, s_landsat8, s_sentinel1, s_sentinel2):
+        for value in coll.values():
+            for v in value.values():
+                shapes.add(len(v))
+    shapes -= {1,}
+    if len(shapes) > 1:
+        raise Exception(f"Found shapes {shapes} for coordinate {coordinate}")
+    print(f"Resulting shapes:", shapes)
 
 
 def sample_fields(
@@ -118,7 +142,7 @@ def sample_fields(
     cache_path: Path,
     startdate_postfix: str = "-11-01",
     enddate_postfix: str = "-04-30",
-    n_pixels: int = 1000,
+    n_pixels: int = 100,
     overwrite: bool = False,
 ) -> None:
     """

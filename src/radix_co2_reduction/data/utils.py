@@ -1,6 +1,6 @@
 """Utilisation functions."""
 from datetime import datetime
-from typing import Any, List
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
@@ -41,3 +41,36 @@ def dma(
 def datetime_to_int(date: str) -> int:
     """Transform the date (in YYYY-MM-DD format) to an integer on day-granularity."""
     return int(datetime.strptime(date, "%Y-%m-%d").timestamp() / 86400)  # 24 * 60 * 60
+
+
+def disable_outliers(
+    sample: Dict[str, Dict[str, List[Optional[float]]]],
+    ratio: float = 0.05,
+) -> Dict[str, Dict[str, List[Optional[float]]]]:
+    """
+    Disable the outliers by setting them to None.
+
+    :param sample: Sample for which to disable the outliers (on day- and band-level)
+    :param ratio: Symmetric ratio of not-None value outliers to disable
+    """
+    # Ignore if ratio is put to zero
+    if ratio <= 0:
+        return sample
+
+    # Disable outliers in spectrum (0..ratio) and (1-ratio..1)
+    for day, day_sample in sample.items():
+        for band, values in day_sample.items():
+            values_sort = sorted([v for v in values if v is not None])
+
+            # Ignore if all-None already
+            if not values_sort or round(ratio * len(values_sort)) == 0:
+                continue
+
+            # Check min and max threshold
+            min_val = values_sort[round(ratio * len(values_sort))]
+            max_val = values_sort[-round(ratio * len(values_sort))]
+            values = [
+                None if (v is None) or (v <= min_val) or (v >= max_val) else v for v in values
+            ]
+            sample[day][band] = values
+    return sample

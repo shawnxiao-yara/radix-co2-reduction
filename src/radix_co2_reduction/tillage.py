@@ -1,22 +1,23 @@
 """Main script (pipeline) for the tillage detection task."""
+from multiprocessing import Pool, cpu_count
 from pathlib import Path
-from typing import List, Tuple
+from typing import Any, List, Tuple
 
 import pandas as pd
+from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 from src.radix_co2_reduction.data import load_data
 from src.radix_co2_reduction.earth_engine.session import start
-from src.radix_co2_reduction.field_detect import extract_field_boundaries
-from src.radix_co2_reduction.gee_extract import sample_fields
 from src.radix_co2_reduction.tillage_detection import FieldRF
+from src.radix_co2_reduction.utils import sample
 
 
-def load_beck() -> Tuple[List[Tuple[float, float]], List[int], List[bool]]:
+def load_beck_tillage() -> Tuple[List[Tuple[float, float]], List[int], List[bool]]:
     """
     Load in the raw Beck's dataset.
 
-    :return: Two lists: (1) the (lat,lng) coordinates, and (2) whether or not there was tillage
+    :return: Three lists: (1) the (lat,lng) coordinates, (2) the year, and (3) whether or not there was tillage
     """
     beck = pd.read_csv(Path(__file__).parent / "../../data/beck_corrected.csv")
     coordinates, years, labels = [], [], []
@@ -25,7 +26,7 @@ def load_beck() -> Tuple[List[Tuple[float, float]], List[int], List[bool]]:
             coordinates.append((float(row.lat), float(row.lng)))
             years.append(int(row.year))
             labels.append(row.tillage == "Conv.-Till")
-
+    
     # Print out overview of the data
     print(f"Loaded in {len(labels)} samples from Beck's dataset:")
     for label in set(labels):
@@ -33,68 +34,39 @@ def load_beck() -> Tuple[List[Tuple[float, float]], List[int], List[bool]]:
     return coordinates, years, labels
 
 
-def sample(
-    cache_path: Path,
-    coordinates: List[Tuple[float, float]],
-    years: List[int],
-    labels: List[bool],
-    model_path: Path = Path(__file__).parent / "../../models",
-    min_samples: int = 5,
-) -> Tuple[List[Tuple[float, float]], List[bool]]:
+def get_features(
+        cache_path: Path,
+        coordinates: List[Tuple[float, float]],
+        model: Any,
+) -> List[Any]:
     """
-    Sample the fields under the given coordinates.
+    Get all the features for the given coordinates.
 
-    :param cache_path: Path towards a caching directory to store intermediate results (required due to large data size)
-    :param coordinates: Coordinates (lat,lng) of the fields to sample
-    :param years: Years in which to sample the corresponding fields
-    :param labels: Tillage labels of the corresponding fields
-    :param model_path: Path towards the directory where the models are stored
-    :param min_samples: Minimum number of samples/field required before considering the field for training
-    :return: Tuple of successfully sampled coordinates with their corresponding label
+    :param cache_path: Path towards a caching directory to store intermediate results
+    :param coordinates: The coordinates to get the features for
+    :param model: Model used to create features
     """
-    # Load in all the field boundaries and filter out the samples that aren't recognised
-    print("\nPredicting field boundaries...")
-    boundaries = extract_field_boundaries(
-        coordinates=coordinates,
-        model_path=model_path,
-        cache_path=cache_path,
-    )
-    assert len(boundaries) == len(coordinates)
-    coordinates_f, years_f, labels_f, boundaries_f = [], [], [], []
-    for c, y, l, b in zip(coordinates, years, labels, boundaries):
-        if b:
-            coordinates_f.append(c)
-            years_f.append(y)
-            labels_f.append(l)
-            boundaries_f.append(b)
-    coordinates, years, labels, boundaries = coordinates_f, years_f, labels_f, boundaries_f
-    print(f"Total of {len(labels)} field boundaries successfully extracted")
+    inputs = [(model, cache_path / f"{c[0]}-{c[1]}") for c in coordinates]
+    with Pool(cpu_count() - 2) as p:
+        features = list(
+                tqdm(p.imap(get_single_feature, inputs), total=len(inputs), desc="Creating features...")
+        )
+    return features
 
-    # Sample fields using Google Earth Engine
-    print("\nSampling fields...")
-    sample_fields(
-        coordinates=coordinates,
-        boundaries=boundaries,
-        years=years,
-        cache_path=cache_path,
-    )
-    coordinates_f, years_f, labels_f, boundaries_f = [], [], [], []
-    for c, y, l, b in zip(coordinates, years, labels, boundaries):  # noqa B007
-        if len(load_data(cache_path / f"{c[0]}-{c[1]}")) >= min_samples:
-            coordinates_f.append(c)
-            labels_f.append(l)
-    coordinates, labels = coordinates_f, labels_f
-    print(f"Total of {len(labels)} fields successfully sampled")
-    return coordinates, labels
+
+def get_single_feature(inp: Any) -> Any:
+    """Get a single coordinate/year couple's features."""
+    model, path = inp
+    return model.get_features(load_data(path))
 
 
 def train(
-    cache_path: Path,
-    coordinates: List[Tuple[float, float]],
-    years: List[int],
-    labels: List[bool],
-    model_path: Path = Path(__file__).parent / "../../models",
-    min_samples: int = 5,
+        cache_path: Path,
+        coordinates: List[Tuple[float, float]],
+        years: List[int],
+        labels: List[bool],
+        model_path: Path = Path(__file__).parent / "../../models",
+        min_samples: int = 5,
 ) -> None:
     """
     Train the model to predict if a tillage event has occurred on the given coordinate or not.
@@ -107,47 +79,41 @@ def train(
     :param min_samples: Minimum number of samples/field required before considering the field for training
     """
     # Sample the fields
-    coordinates, labels = sample(
-        cache_path=cache_path,
-        coordinates=coordinates,
-        years=years,
-        labels=labels,
-        model_path=model_path,
-        min_samples=min_samples,
+    coordinates, _, labels = sample(
+            cache_path=cache_path,
+            coordinates=coordinates,
+            years=years,
+            labels=labels,
+            model_path=model_path,
+            min_samples=min_samples,
     )
-
+    
     # Train the classification model's feature mask first
     print("\nTraining the model...")
     model = FieldRF(
-        models_path=model_path,
+            models_path=model_path,
     )
     model.init_feature_mask()
     model.optimise_feature_mask(
-        features=[
-            model.get_features(load_data(cache_path / f"{c[0]}-{c[1]}"))
-            for c in tqdm(coordinates, desc="Creating features...")
-        ],
-        labels=labels,
+            features=get_features(cache_path, coordinates, model),
+            labels=labels,
     )
-
+    
     # Train the classification model itself and save the results
     model.train(
-        features=[
-            model.get_features(load_data(cache_path / f"{c[0]}-{c[1]}"))
-            for c in tqdm(coordinates, desc="Creating features...")
-        ],
-        labels=labels,
+            features=get_features(cache_path, coordinates, model),
+            labels=labels,
     )
     model.save()
 
 
 def test(
-    cache_path: Path,
-    coordinates: List[Tuple[float, float]],
-    years: List[int],
-    labels: List[bool],
-    model_path: Path = Path(__file__).parent / "../../models",
-    min_samples: int = 5,
+        cache_path: Path,
+        coordinates: List[Tuple[float, float]],
+        years: List[int],
+        labels: List[bool],
+        model_path: Path = Path(__file__).parent / "../../models",
+        min_samples: int = 5,
 ) -> None:
     """
     Evaluate the model's performance on the given coordinates.
@@ -160,35 +126,32 @@ def test(
     :param min_samples: Minimum number of samples/field required before considering the field
     """
     # Sample the fields
-    coordinates, labels = sample(
-        cache_path=cache_path,
-        coordinates=coordinates,
-        years=years,
-        labels=labels,
-        model_path=model_path,
-        min_samples=min_samples,
+    coordinates, _, labels = sample(
+            cache_path=cache_path,
+            coordinates=coordinates,
+            years=years,
+            labels=labels,
+            model_path=model_path,
+            min_samples=min_samples,
     )
-
+    
     # Evaluate the classification model's performance
     print("\nEvaluating the model...")
     model = FieldRF(
-        models_path=model_path,
+            models_path=model_path,
     )
     model.eval(
-        features=[
-            model.get_features(load_data(cache_path / f"{c[0]}-{c[1]}"))
-            for c in tqdm(coordinates, desc="Creating features...")
-        ],
-        labels=labels,
+            features=get_features(cache_path, coordinates, model),
+            labels=labels,
     )
 
 
 def infer(
-    cache_path: Path,
-    coordinates: List[Tuple[float, float]],
-    years: List[int],
-    model_path: Path = Path(__file__).parent / "../../models",
-    min_samples: int = 5,
+        cache_path: Path,
+        coordinates: List[Tuple[float, float]],
+        years: List[int],
+        model_path: Path = Path(__file__).parent / "../../models",
+        min_samples: int = 5,
 ) -> List[bool]:
     """
     Perform inference on the model.
@@ -200,19 +163,19 @@ def infer(
     :param min_samples: Minimum number of samples/field required before considering the field
     """
     # Sample the fields
-    coordinates, _ = sample(
-        cache_path=cache_path,
-        coordinates=coordinates,
-        years=years,
-        labels=[False] * len(coordinates),  # Dummy labels
-        model_path=model_path,
-        min_samples=min_samples,
+    coordinates, _, _ = sample(
+            cache_path=cache_path,
+            coordinates=coordinates,
+            years=years,
+            labels=[False] * len(coordinates),  # Dummy labels
+            model_path=model_path,
+            min_samples=min_samples,
     )
-
+    
     # Load in the model
     print("\nPredicting tillage events...")
     model = FieldRF(
-        models_path=model_path,
+            models_path=model_path,
     )
     return [
         model(load_data(cache_path / f"{c[0]}-{c[1]}"))
@@ -222,55 +185,67 @@ def infer(
 
 if __name__ == "__main__":
     import argparse
-
+    
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cache-path", default=Path.home() / "data/agoro/cache", type=str)
     parser.add_argument("--model-path", default=Path(__file__).parent / "../../models", type=str)
-    parser.add_argument("--train", default=0, type=int)
-    parser.add_argument("--test", default=0, type=int)
+    parser.add_argument("--train", default=1, type=int)
+    parser.add_argument("--test", default=1, type=int)
+    parser.add_argument("--test_ratio", default=.1, type=float)
     parser.add_argument("--infer", default=0, type=int)
     args = parser.parse_args()
-
+    
     # Setup cache
     cache = Path(args.cache_path)
     cache.mkdir(parents=True, exist_ok=True)
-
+    
     # Load in model-path
     models = Path(args.model_path)
-
+    
     # Start an Earth Engine session
     start()
-
+    
     # Load in Beck's dataset
     print("Loading in Beck's dataset...")
-    beck_coordinates, beck_years, beck_labels = load_beck()
-
+    beck_coordinates, beck_years, beck_labels = load_beck_tillage()
+    
+    # Split into train and test
+    data = list(zip(beck_coordinates, beck_years, beck_labels))
+    train_data, test_data = train_test_split(
+            data,
+            test_size=args.test_ratio,
+            stratify=beck_labels,
+            random_state=42,
+    )
+    train_coordinates, train_years, train_labels = zip(*train_data)
+    test_coordinates, test_years, test_labels = zip(*test_data)
+    
     # Train the model, if requested
     if args.train:
         train(
-            cache_path=cache,
-            model_path=models,
-            coordinates=beck_coordinates,
-            years=beck_years,
-            labels=beck_labels,
+                cache_path=cache,
+                model_path=models,
+                coordinates=train_coordinates,
+                years=train_years,
+                labels=train_labels,
         )
-
+    
     # Test the model, if requested
     if args.test:
         test(
-            cache_path=cache,
-            model_path=models,
-            coordinates=beck_coordinates,
-            years=beck_years,
-            labels=beck_labels,
+                cache_path=cache,
+                model_path=models,
+                coordinates=test_coordinates,
+                years=test_years,
+                labels=test_labels,
         )
-
+    
     # Perform inference on the model, if requested
     if args.infer:
         preds = infer(
-            cache_path=cache,
-            model_path=models,
-            coordinates=beck_coordinates,
-            years=beck_years,
+                cache_path=cache,
+                model_path=models,
+                coordinates=beck_coordinates,
+                years=beck_years,
         )
         print(f"Predicted labels: {preds}")

@@ -10,6 +10,8 @@ def custom(values: List[float], perc: float = 0.1) -> List[float]:
     cut = round(perc * len(values))
     if cut:
         values = values[cut:-cut]
+    if not values:
+        return [0.0] * 4
     result = describe(values)
     return [
         result.minmax[0],

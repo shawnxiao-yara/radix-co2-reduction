@@ -1,21 +1,32 @@
 """Functions to extract features from a random list of samples."""
-from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 
 from src.radix_co2_reduction.data import BANDS, load_pixel_data
 
 
+def ndvi_feature(
+    sample: Dict[str, Dict[str, List[Optional[float]]]],
+    year: int,
+) -> List[float]:
+    """Create a feature on the NDVI time-series data from the sample."""
+    vector = extract_vector(sample, year)
+    return get_feature(vector)  # type: ignore
+
+
 def extract_vector(
-    field_path: Path, band: str = "NDVI"
-) -> Optional[np.ndarray]:  # TODO: Provide field-sample instead
+    sample: Dict[str, Dict[str, List[Optional[float]]]],
+    year: int,
+    band: str = "NDVI",
+) -> Optional[np.ndarray]:
     """Extract the combined vector of (down) sampled NDVI values of all field pixel values (averaged)."""
     assert band in BANDS
 
     # Load the data, if exists
-    data, _ = load_pixel_data(
-        field_path,
+    data = load_pixel_data(
+        sample=sample,
+        year=year,
         downsample=10,
         window=30,
         remove_neg=True,  # Removes noisy samples
@@ -25,14 +36,14 @@ def extract_vector(
         return None
     data = np.asarray(data)
     data_comb = np.nan_to_num(np.nanmedian(np.where(data == 0, np.nan, data), axis=0))
-    return data_comb[BANDS.index(band)]
+    return data_comb[BANDS.index(band)]  # type: ignore
 
 
 def get_feature(vector: List[float]) -> List[float]:
     """
     Get the bucket feature corresponding the field-ID.
 
-    This feature calculates for each bucket the min, mean, max, std, and slope-progress.
+    This feature calculates for each bucket the min, mean, max, for the time series values and slope.
     """
     # Calculate slopes
     slopes = [

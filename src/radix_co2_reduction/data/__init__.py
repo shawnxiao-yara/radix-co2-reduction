@@ -1,7 +1,7 @@
 """General utilisation methods and classes."""
 from .data import (
     BANDS,
-    get_label,
+    get_tillage_label,
     get_year,
     load_data,
     load_field_data,
@@ -15,7 +15,7 @@ __all__ = [
     "datetime_to_int",
     "load_data",
     "BANDS",
-    "get_label",
+    "get_tillage_label",
     "get_year",
     "load_field_data",
     "load_pixel_data",

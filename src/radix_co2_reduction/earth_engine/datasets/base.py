@@ -124,7 +124,7 @@ class EarthEngineCollection:
         self.collection = ee.ImageCollection(unique_dates.map(merge))
 
     def set_core_bands(self) -> None:
-        """Set the core bands: ['B','G','R','NIR','SWIR1','SWIR2']."""
+        """Set the core bands of the dataset."""
         pass
 
     def mask_cropland(
@@ -185,9 +185,7 @@ class EarthEngineCollection:
 
         if scheme == "first":
             im = self.collection.first()
-            date = datetime.fromtimestamp(int(im.date().getInfo()["value"] / 1000)).strftime(
-                "%Y-%m-%d"
-            )
+            date = self.get_dates()[0]
             mp.add_ee_layer(
                 im,
                 vis_param,
@@ -196,9 +194,7 @@ class EarthEngineCollection:
             )
         elif scheme == "last":
             im = self.collection.mosaic()
-            date = datetime.fromtimestamp(int(im.date().getInfo()["value"] / 1000)).strftime(
-                "%Y-%m-%d"
-            )
+            date = self.get_dates()[-1]
             mp.add_ee_layer(
                 im,
                 vis_param,
@@ -276,7 +272,6 @@ class EarthEngineCollection:
         """
         Sample the collection over a specified region.
 
-        :param region: The region to sample
         :param pixels: The pixels to sample over
         :param seed: Randomisation seed
         :return: For every date a dictionary over all the requested bands containing the sampled values
@@ -333,7 +328,6 @@ class EarthEngineCollection:
             )
             download_as_png(
                 im=im,
-                # im=im.clip(region),
                 vis_param=vis_params,
                 region=region,
                 write_path=write_path / f"{date}{postfix}.png",

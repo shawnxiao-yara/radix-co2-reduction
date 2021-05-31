@@ -1,28 +1,38 @@
 """Utilisation functions regarding the data."""
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from .utils import datetime_to_int, dma
+from .dictionary import Data
+from .utils import datetime_to_int, disable_outliers, dma
 
-BANDS = ("B", "G", "R", "NIR", "SWIR1", "SWIR2", "NDVI", "EVI", "NDTI")
+BANDS = ("B", "G", "R", "NIR", "SWIR1", "SWIR2", "NDVI", "EVI", "NDTI", "SAR_VV", "SAR_VH")
 
 
-def load_data(read_path: Path) -> Dict[str, Dict[str, List[Optional[float]]]]:
-    """Load in the data, preference for sentinel2 > landsat8 > landsat7."""
-    data = {}
+def load_data(
+    read_path: Path, outlier_ratio: float = 0.0
+) -> Dict[str, Dict[str, List[Optional[float]]]]:
+    """
+    Load in the data, merge on conflicts.
+
+    :param read_path: Path under which data is stored (in samples/ folder)
+    :param outlier_ratio: Symmetric ratio of outliers to remove (none by default)
+    """
+    data = Data()
     with open(read_path / "samples/landsat7.json", "r") as f:
         data.update(json.load(f))
     with open(read_path / "samples/landsat8.json", "r") as f:
         data.update(json.load(f))
+    with open(read_path / "samples/sentinel1.json", "r") as f:
+        data.update(json.load(f))
     with open(read_path / "samples/sentinel2.json", "r") as f:
         data.update(json.load(f))
-    return data
+    return disable_outliers(data, ratio=outlier_ratio)
 
 
-def get_label(field_path: Path) -> Any:
+def get_tillage_label(field_path: Path) -> Any:
     """Get the field's labels."""
     with open(field_path / "meta.json", "r") as f:
         return json.load(f)["tillage"] != "No-Till"  # True if not tillage
@@ -35,36 +45,23 @@ def get_year(field_path: Path) -> Any:
 
 
 # TODO: Change, or even remove?
-def load_field_data(inp: Any) -> Tuple[Any, Optional[bool]]:  # noqa C901
+def load_field_data(
+    read_path: Path, outlier_ratio: float = 0.05
+) -> Dict[str, List[Optional[float]]]:
     """Standalone function to load in a sample (multiprocessing purposes)."""
-    read_path, cloud_filter = inp
-    data: Dict[str, Any] = {}
-
-    def add_data(new_data: Dict[str, Dict[str, List[float]]]) -> None:
-        for date, sample in new_data.items():
-            if cloud_filter is not None and cloud_filter(sample):
-                continue
-            if date in data:
-                for band, values in sample.items():
-                    data[date][band] += values
-            else:
-                data[date] = sample
-
-    # Load in all the data
-    with open(read_path / "samples/landsat7.json", "r") as f:
-        add_data(json.load(f))
-    with open(read_path / "samples/landsat8.json", "r") as f:
-        add_data(json.load(f))
-    with open(read_path / "samples/sentinel2.json", "r") as f:
-        add_data(json.load(f))
+    data: Dict[str, Any] = load_data(read_path, outlier_ratio=outlier_ratio)
 
     # Check if enough data samples remain, return empty result if not
-    if len(data) < 5:
-        return {}, None
+    if sum([d["R"] != [] for d in data.values()]) < 5:
+        return {}
 
-    # Load in meta-data
-    tillage = get_label(read_path)
-    return data, tillage
+    # Collapse the samples and return
+    result: Dict[str, List[Optional[float]]] = {}
+    for band in BANDS:
+        result[band] = []
+        for value in data.values():
+            result[band] += value[band]
+    return result
 
 
 def load_pixel_data(
@@ -98,11 +95,13 @@ def load_pixel_data(
         remove_neg=remove_neg,
         remove_zero=remove_zero,
     )
+    # TODO: Remove "bad" pixels? I.e. those with more None values than the others (e.g. more than the median)
 
     # Load in meta-data
     return data
 
 
+# TODO: Update
 def process_sample_pixel(
     sample: Dict[str, Dict[str, List[Optional[float]]]],
     start_idx: int,
@@ -130,10 +129,11 @@ def process_sample_pixel(
     # Add all pixel-level data
     dates = sorted(sample.keys())
     n_pixels = len(list(sample.values())[0]["R"])
-    temp_data = np.zeros((n_pixels, 9, len(dates)), dtype=np.float32)
+    temp_data = np.zeros((n_pixels, len(BANDS), len(dates)), dtype=np.float32)
     for i, date in enumerate(dates):
         for j, band in enumerate(BANDS):
-            temp_data[:, j, i] = sample[date][band]
+            if sample[date][band]:
+                temp_data[:, j, i] = sample[date][band]
 
     # Remove pixel-values that are always None
     date_idx = np.asarray([datetime_to_int(date) for date in dates])

@@ -11,6 +11,7 @@ class CroplandCollection(EarthEngineCollection):
     def __init__(self) -> None:
         """Initialise the Cropland USDA NASS collection."""
         super().__init__(
+            tag="USDA/NASS/CDL",
             vis_param={
                 "type": "PixelType",
                 "precision": "int",
@@ -18,7 +19,6 @@ class CroplandCollection(EarthEngineCollection):
                 "max": 2,
                 "palette": ["yellow", "000000"],
             },
-            tag="USDA/NASS/CDL",
             test_band="cropland",  # Only used for null-detection
         )
 
