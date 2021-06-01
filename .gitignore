@@ -81,7 +81,7 @@ experiments/
 site/
 
 # Data
-data/*
+# data/*
 !data/__init__.py
 !data/beck_corn_data.csv
 !data/cloud_data.json
