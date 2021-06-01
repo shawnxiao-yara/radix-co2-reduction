@@ -51,7 +51,7 @@ TEMP*
 *.gif
 *.jpg
 *.svg
-*.png
+# *.png
 *.pdf
 
 # No hidden files
@@ -85,11 +85,11 @@ notebooks/
 site/
 
 # Data
-data/*
-!data/__init__.py
-!data/beck_corn_data.csv
-!data/cloud_data.json
-!data/polygons.json
+# data/*
+# !data/__init__.py
+# !data/beck_corn_data.csv
+# !data/cloud_data.json
+# !data/polygons.json
 
 # Models
 models/*
