@@ -1,1 +1,1 @@
-"""RadixCO2Reduction test suite."""
+"""CO2 Reduction test suite."""

@@ -1,6 +1,6 @@
 """Test package version."""
 
-from radix_co2_reduction import __version__
+from co2_reduction import __version__
 
 
 def test_version() -> None:

@@ -25,6 +25,7 @@ var/
 # General ignores
 .DS_Store
 _*/
+/data/
 /tmp/
 TEMP*
 
@@ -36,6 +37,7 @@ TEMP*
 
 # No data binaries
 *.dat
+*.pickle*
 *.zip
 
 # No data files
@@ -46,10 +48,10 @@ TEMP*
 *.xlsb
 
 # No images and pdf
-# *.gif
-# *.jpg
-# *.svg
-# *.png
+*.gif
+*.jpg
+*.svg
+*.png
 *.pdf
 
 # No hidden files
@@ -76,16 +78,18 @@ environment.yml
 # Jupyter
 .ipynb_checkpoints/
 experiments/
+notebooks/
+*.ipynb
 
 # Portray
 site/
 
 # Data
-# data/*
-# !data/__init__.py
-# !data/beck_corn_data.csv
-# !data/cloud_data.json
-# !data/polygons.json
+data/*
+!data/__init__.py
+!data/beck_corn_data.csv
+!data/cloud_data.json
+!data/polygons.json
 
 # Models
 models/*

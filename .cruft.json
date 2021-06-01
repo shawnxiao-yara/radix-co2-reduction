@@ -4,18 +4,18 @@
   "checkout": null,
   "context": {
     "cookiecutter": {
-      "project_name": "RadixCO2Reduction",
+      "project_name": "CO2 Reduction",
       "project_description": "Detection of CO2 reduction measures using remote sensing.",
       "package_version": "0.0.0",
-      "package_slug": "radix_co2_reduction",
-      "package_slug_kebab": "radix-co2-reduction",
-      "conda_env_dev": "radix-co2-reduction-env",
-      "conda_env_run": "radix-co2-reduction-run-env",
+      "package_slug": "co2_reduction",
+      "package_slug_kebab": "co2-reduction",
+      "conda_env_dev": "co2-reduction-env",
+      "conda_env_run": "co2-reduction-run-env",
       "gitlab_organization": "radix-ai",
-      "gitlab_project_path": "None",
+      "gitlab_project_path": "gitlab.com/radix-ai/yara/co2-reduction",
       "environments": "",
       "sentry_dsn": "",
-      "sentry_project": "radix-co2-reduction",
+      "sentry_project": "co2-reduction",
       "sentry_org": "",
       "_template": "git+ssh://git@gitlab.com/radix-ai/packages/pure-cookiecutter.git"
     }

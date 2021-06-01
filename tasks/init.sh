@@ -50,15 +50,15 @@ function create_conda_env {
     rm -rf "$SCRIPT_PATH"/../.envs/
     conda config --remove envs_dirs .envs 2> /dev/null || true
     log "Done!\\n"
-    log "Creating conda environment radix-co2-reduction-env...\\n\\n"
+    log "Creating conda environment co2-reduction-env...\\n\\n"
     pip install --quiet conda-merge
     conda-merge environment.run.yml environment.dev.yml > environment.yml
     mamba env create --force
     rm environment.yml
     log "Done!\\n"
-    log "Installing editable radix_co2_reduction into conda environment...\\n\\n"
+    log "Installing editable co2_reduction into conda environment...\\n\\n"
     # shellcheck disable=SC1091
-    source activate radix-co2-reduction-env
+    source activate co2-reduction-env
     pip install --editable .
     conda deactivate
     log "Done!\\n"
@@ -67,7 +67,7 @@ function create_conda_env {
 function configure_git {
     log "Installing pre-commit hooks...\\n"
     # shellcheck disable=SC1091
-    source activate radix-co2-reduction-env
+    source activate co2-reduction-env
     pre-commit install --hook-type pre-commit
     pre-commit install --hook-type prepare-commit-msg
     pre-commit install --hook-type pre-push
@@ -82,7 +82,7 @@ function configure_git {
 function install_jupyter_widgets {
     log "Installing Jupyter widgets...\\n"
     # shellcheck disable=SC1091
-    source activate radix-co2-reduction-env
+    source activate co2-reduction-env
     jupyter labextension install @jupyter-widgets/jupyterlab-manager
     conda deactivate
     log "Done!\\n"
@@ -98,17 +98,17 @@ function install_fish {
     # shellcheck disable=SC2129
     echo "set fish_greeting" >> ~/.config/fish/config.fish
     echo "starship init fish | source" >> ~/.config/fish/config.fish
-    echo "conda activate radix-co2-reduction-env" >> ~/.config/fish/config.fish
+    echo "conda activate co2-reduction-env" >> ~/.config/fish/config.fish
     log "Done!\\n"
 }
 
 function list_tasks {
     log "Local environment ready! Remember to activate your conda environment with:\\n\\n"
-    log "$ conda activate radix-co2-reduction-env\\n\\n"
+    log "$ conda activate co2-reduction-env\\n\\n"
     log "After which you can list the available tasks with:\\n\\n"
     log "$ invoke --list\\n\\n"
     # shellcheck disable=SC1091
-    source activate radix-co2-reduction-env
+    source activate co2-reduction-env
     invoke --list
     conda deactivate
 }

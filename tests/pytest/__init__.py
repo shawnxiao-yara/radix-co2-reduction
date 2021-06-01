@@ -1,1 +1,1 @@
-"""RadixCO2Reduction pytest test suite."""
+"""CO2 Reduction pytest test suite."""

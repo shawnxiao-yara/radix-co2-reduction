@@ -26,7 +26,7 @@ RUN --mount=type=ssh pip install conda-merge && \
     mamba env create --file environment.yml && \
     mamba env create --file environment.run.yml && \
     conda clean --yes --all --force-pkgs-dirs --quiet && \
-    cd /opt/conda/envs/radix-co2-reduction-run-env/lib/python*/site-packages && du --max-depth=3 --threshold=5M -h | sort -h && cd - && \
+    cd /opt/conda/envs/co2-reduction-run-env/lib/python*/site-packages && du --max-depth=3 --threshold=5M -h | sort -h && cd - && \
     find /opt/conda/ -follow -type d -name '__pycache__' -exec rm -rf {} + && \
     find /opt/conda/ -follow -type d -name 'examples' -not -path '*tensorflow*' -exec rm -rf {} + && \
     find /opt/conda/ -follow -type d -name 'tests' -exec rm -rf {} + && \
@@ -34,7 +34,7 @@ RUN --mount=type=ssh pip install conda-merge && \
     find /opt/conda/ -follow -type f -name '*.js.map' -delete && \
     find /opt/conda/ -follow -type f -name '*.pyc' -delete && \
     find /opt/conda/ -follow -type f -name '*.pyo' -delete && \
-    cd /opt/conda/envs/radix-co2-reduction-run-env/lib/python*/site-packages && du --max-depth=3 --threshold=5M -h | sort -h && cd -
+    cd /opt/conda/envs/co2-reduction-run-env/lib/python*/site-packages && du --max-depth=3 --threshold=5M -h | sort -h && cd -
 
 # # 2. Create CI image
 
@@ -49,8 +49,8 @@ COPY --from=compile-image /root/.conda/ /root/.conda/
 COPY --from=compile-image /opt/conda/ /opt/conda/
 
 # Activate conda environment.
-ENV PATH /opt/conda/envs/radix-co2-reduction-env/bin:$PATH
-RUN echo "source activate radix-co2-reduction-env" >> ~/.bashrc
+ENV PATH /opt/conda/envs/co2-reduction-env/bin:$PATH
+RUN echo "source activate co2-reduction-env" >> ~/.bashrc
 
 # # 3. Create application image
 
@@ -59,8 +59,8 @@ FROM $BASE_IMAGE AS app-image
 # Automatically activate conda environment when opening a bash shell with `/bin/bash`.
 WORKDIR /app/src/
 ENV PYTHONPATH /app/src/:$PYTHONPATH
-ENV PATH /opt/conda/envs/radix-co2-reduction-run-env/bin:$PATH
-RUN echo "source activate radix-co2-reduction-run-env" >> ~/.bashrc
+ENV PATH /opt/conda/envs/co2-reduction-run-env/bin:$PATH
+RUN echo "source activate co2-reduction-run-env" >> ~/.bashrc
 
 # Create Docker entrypoint.
 RUN printf '#!/usr/bin/env bash\n\
@@ -69,12 +69,12 @@ RUN printf '#!/usr/bin/env bash\n\
     \n\
     function run_dev {\n\
     echo "Running Development Server on 0.0.0.0:8000"\n\
-    uvicorn "radix_co2_reduction.api:app" --reload --log-level debug --host 0.0.0.0\n\
+    uvicorn "co2_reduction.api:app" --reload --log-level debug --host 0.0.0.0\n\
     }\n\
     \n\
     function run_serve {\n\
     echo "Running Production Server on 0.0.0.0:8000"\n\
-    gunicorn --bind 0.0.0.0 --workers=2 --timeout 30 --graceful-timeout 10 --keep-alive 10 --worker-tmp-dir /dev/shm --access-logfile - --log-file - -k uvicorn.workers.UvicornWorker "radix_co2_reduction.api:app"\n\
+    gunicorn --bind 0.0.0.0 --workers=2 --timeout 30 --graceful-timeout 10 --keep-alive 10 --worker-tmp-dir /dev/shm --access-logfile - --log-file - -k uvicorn.workers.UvicornWorker "co2_reduction.api:app"\n\
     }\n\
     \n\
     case "$1" in\n\

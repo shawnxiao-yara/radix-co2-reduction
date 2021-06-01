@@ -1,11 +1,8 @@
-torch
-torchvision
 pytorch-lightning~=1.3.1
-pycocotools~=2.0.2
-earthengine-api~=0.1.264
+earthengine-api~=0.1.267
 folium~=0.12.1
 scikit-learn~=0.24.2
-geopandas~=0.9.0
-opencv-python~=4.5.1.48
 imbalanced-learn~=0.8.0
-tqdm~=4.60.0
+hdbscan~=0.8.27
+pandas~=1.2.4
+git+https://github.com/radix-ai/agoro-field-boundary-detector.git

@@ -1,1 +1,1 @@
-"""RadixCO2Reduction pytest-bdd test suite."""
+"""CO2 Reduction pytest-bdd test suite."""

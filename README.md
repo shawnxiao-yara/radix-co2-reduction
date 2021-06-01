@@ -1,4 +1,4 @@
-# RadixCO2Reduction
+# CO2 Reduction
 
 Detection of CO2 reduction measures using remote sensing.
 
@@ -30,8 +30,8 @@ All code related to the GEE can be found in the `src/radix_co2_reduction/earth_e
 
 ## Field Detection
 
-In order to convert a geographic coordinate `(longitude, latitude)` into a field, we've implemented and trained a [Mask R-CNN network in PyTorch](https://pytorch.org/tutorials/intermediate/torchvision_tutorial.html) on the instance segmentation task.
-Our implementation can be found in the `src/radix_co2_reduction/field_detection` folder.
+In order to convert a geographic coordinate `(latitude, longitude)` into a field, we've implemented and trained a Mask R-CNN network in PyTorch on the instance segmentation task.
+For more details on this implementation, please visit the corresponding [GitHub repository](https://github.com/radix-ai/agoro-field-boundary-detector).
 
 
 ## Tillage Classification
@@ -41,7 +41,7 @@ In order to make this prediction, we've used both the GEE code (to extract field
 The code used to make this prediction can be found in the `src/radix_co2_reduction/tillage_detection` folder.
 
 You can access a **pipeline** of this code in the `src/radix_co2_reduction/tillage.py` file, which performs the following steps:
- 1) Take in a coordinate `(longitude, latitude)` and a time-frame `(starting date, end-date)` in `YYYY-MM-DD` format.
+ 1) Take in a coordinate `(latitude, longitude)` and a time-frame `(starting date, end-date)` in `YYYY-MM-DD` format.
  2) Extract the field boundaries of the field marked by the coordinate.
  3) Sample the detected field over the specified time-frame.
  4) Make tillage-predictions based on the sampled data.

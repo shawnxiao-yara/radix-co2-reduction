@@ -1,4 +1,5 @@
 """Setup module for this Python package."""
+
 import os
 import re
 
@@ -19,7 +20,7 @@ with open(os.path.join(os.path.dirname(__file__), "environment.run.yml")) as spe
             install_requires.append(prefix + match.group("n") + match.group("v"))
 
 setup(
-    name="radix_co2_reduction",
+    name="co2_reduction",
     version="0.0.0",
     description="Detection of CO2 reduction measures using remote sensing.",
     package_dir={"": "src"},
