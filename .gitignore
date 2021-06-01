@@ -46,10 +46,10 @@ TEMP*
 *.xlsb
 
 # No images and pdf
-*.gif
-*.jpg
-*.svg
-*.png
+# *.gif
+# *.jpg
+# *.svg
+# *.png
 *.pdf
 
 # No hidden files
